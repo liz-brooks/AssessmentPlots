@@ -1,4 +1,4 @@
 # AssessmentPlots
-# Plots for assessment input and output
-# Liz Brooks
-# January 2021
+Plots for assessment input and output
+Created by Liz Brooks
+Date: January 2021
