@@ -9,6 +9,7 @@ library(tibble)
 library(dplyr)
 library(tidyr)
 library(ggridges)
+library(hrbrthemes)
 
 #=====================================================
 
@@ -112,6 +113,7 @@ my.len$MK <- as.factor(my.len$MK)
 ############my.len.sa <- unique(my.len$SA)
 
 my.tibble <- as_tibble(my.len)
+my.tibble.len <- my.tibble
 my.tibble <- my.tibble %>%
   mutate(PORT_NAME2 = substr(PORT_NAME,1,7))
 
@@ -385,6 +387,7 @@ my.age$MK <- as.factor(my.age$MK)
 
 
 my.tibble <- as_tibble(my.age)
+my.tibble.age <- my.tibble
 my.tibble <- my.tibble %>%
   mutate(PORT_NAME2 = substr(PORT_NAME,1,7))
 
@@ -794,6 +797,41 @@ comland.annual.sa.gear <- ggplot( land.by.yr.sa.gear, aes(x=YEAR, y=MTsum, fill=
 #   scale_fill_manual(values=land.col)
 
 
+# ---- by year*market ----
+
+land.by.yr.mk <- my.tibble.land %>%
+  filter(MK %in% c(1470, 1475, 1476, 1479)) %>%
+  group_by(YEAR, MK) %>%
+  summarize(MTsum = sum(MT, na.rm=T)) %>%
+  mutate(percentage=MTsum/sum(MTsum)*100) 
+
+# --------------plot
+land.yr.mk <- sort(unique(land.by.yr.mk$MK))
+n.land.mk <- length(land.yr.mk)
+mk.col.mat <- matrix(NA, nrow=1, ncol=n.land.mk)
+colnames(mk.col.mat) <- land.yr.mk  #c(as.character(age.gear))
+rownames(mk.col.mat) <- ""
+mk.col.mat[1,] <- c("#980043" ,"#e7298a", "#c994c7", "#edb9da" ) # !!NOTE:  i manually made sure the number of colors=n.land.mk
+
+
+mk.col <- mk.col.mat[1,which(colnames(mk.col.mat) ==  sort(unique(land.by.yr.mk$MK))  )]
+comland.annual.mk <- ggplot( land.by.yr.mk, aes(x=YEAR, y=MTsum, fill=MK, text=MK)) +
+  geom_area( ) +
+  ggtitle("US Landings by Market")+
+  scale_fill_manual(values=mk.col)+
+  labs(fill="Market")
+
+comland.annual.prop.mk <- ggplot( land.by.yr.mk, aes(x=YEAR, y=percentage, fill=MK, text=MK)) +
+  geom_area( ) +
+  ggtitle("US Landings by Market")+
+  scale_fill_manual(values=mk.col)+
+  labs(fill="Market")
+
+
+
+
+
+
 
 # ---- by year*qtr ----
 land.by.yr.qtr <- my.tibble.land %>%
@@ -959,6 +997,7 @@ comland.annual.prop.mo <- ggplot( land.by.yr.mo, aes(x=YEAR, y=percentage, fill=
 
 write.csv(land.by.yr, file=paste0(od,"land.by.yr.csv") )
 write.csv(land.by.yr.gear, file=paste0(od,"land.by.yr.gear.csv") )
+write.csv(land.by.yr.mk, file=paste0(od,"land.by.yr.mk.csv") )
 write.csv(land.by.yr.sa, file=paste0(od,"land.by.yr.sa.csv") )
 write.csv(land.by.yr.sa.gear, file=paste0(od,"land.by.yr.sa.gear.csv") )
 write.csv(land.by.yr.tc, file=paste0(od,"land.by.yr.tc.csv") )
@@ -975,6 +1014,8 @@ comland.annual.mo
 comland.annual.prop.mo
 comland.annual.qtr
 comland.annual.prop.qtr
+comland.annual.mk 
+comland.annual.prop.mk 
 comland.annual.sa
 comland.annual.prop.sa
 comland.annual.gear
@@ -991,3 +1032,261 @@ comland.annual.prop.port
 dev.off()
 
 
+# === Make Tables for report ====
+# https://rfortherestofus.com/2019/11/how-to-make-beautiful-tables-in-r/
+# gt https://gt.rstudio.com/
+# flextable:  https://ardata-fr.github.io/flextable-book/index.html
+#  
+# Length Samples ====
+len.mk.sa <- my.tibble.len %>%
+  mutate(Market =  case_when(
+    MK == 1470 ~ "LARGE",
+     MK == 1475 ~ "SCROD",
+     MK == 1476 ~ "SNAPPER",
+     MK == 1479 ~ "UNKNOWN"
+     )
+   )  %>%
+  mutate(Area = case_when(
+    (SA %in% c(551, 552, 561, 562) ) ~"EGB",
+   ( !(SA %in% c(551, 552, 561, 562))) ~ "WGB"
+     )
+         ) %>% 
+  mutate(Half = case_when(
+    (QTR %in% c(1,2) ) ~"1",
+    ( QTR %in% c(3, 4)) ~ "2"
+  )
+  ) %>% 
+  select(YEAR, Market, Area, Half, LENGTHS) %>%
+  group_by(YEAR, Market, Area, Half) %>%
+  summarize(n.len.samples = sum(LENGTHS, na.rm=T))
+
+  
+  
+  len.mk.area.table <- len.mk.sa %>% 
+    pivot_wider(names_from = c(Market, Area, Half), 
+                names_sep = ".",
+               # names_prefix = "Len.",
+                values_from=n.len.samples) 
+  
+  
+  write.csv(len.mk.area.table, file=paste0(od, "Lengths_Sampled_by_Mkt_Area.csv"), row.names = F)
+  
+  
+  # Age Samples ====
+  age.mk.area <- my.tibble.age %>%
+    filter(MONTH>0, MK %in% c(1470, 1475, 1476, 1479)) %>%
+    mutate(Market =  case_when(
+      MK == 1470 ~ "LARGE",
+      MK == 1475 ~ "SCROD",
+      MK == 1476 ~ "SNAPPER",
+      MK == 1479 ~ "UNKNOWN"
+    )
+    )  %>%
+    mutate(Area = case_when(
+      (SA %in% c(551, 552, 561, 562) ) ~"EGB",
+      ( !(SA %in% c(551, 552, 561, 562))) ~ "WGB"
+    )
+    ) %>% 
+    mutate(Half = case_when(
+      (QTR %in% c(1,2) ) ~"1",
+      ( QTR %in% c(3, 4)) ~ "2"
+    )
+    ) %>% 
+    select(YEAR, Market, Area, Half, AGES) %>%
+    group_by(YEAR, Market, Area, Half) %>%
+    summarize(n.age.samples = sum(AGES, na.rm=T))
+  
+  
+  
+  age.mk.area.table <- age.mk.area %>% 
+    pivot_wider(names_from = c(Market, Area, Half), 
+                names_sep = ".",
+                #names_prefix = "Age.",
+                values_from=n.age.samples)
+  
+  
+  
+  
+  write.csv(len.mk.area.table, file=paste0(od, "Ages_Sampled_by_Mkt_Area.csv"), row.names = F)
+  
+  
+  
+  # Landings ====
+  land.mk.area <- my.tibble.land %>%
+    filter(MONTH>0, MK %in% c(1470, 1475, 1476, 1479)) %>%
+    mutate(Market =  case_when(
+      MK == 1470 ~ "LARGE",
+      MK == 1475 ~ "SCROD",
+      MK == 1476 ~ "SNAPPER",
+      MK == 1479 ~ "UNKNOWN"
+    )
+    )  %>%
+    mutate(Area = case_when(
+      (SA %in% c(551, 552, 561, 562) ) ~"EGB",
+      ( !(SA %in% c(551, 552, 561, 562))) ~ "WGB"
+    )
+    ) %>% 
+    mutate(Half = case_when(
+      (MONTH %in% seq(1,6) ) ~"1",
+      ( MONTH %in% seq(7,12)) ~ "2"
+    )
+    ) %>% 
+    select(YEAR, Market, Area, Half, MT) %>%
+    group_by(YEAR, Market, Area, Half) %>%
+    summarize(MT.sum = sum(MT, na.rm=T))
+  
+  
+  
+  land.mk.area.table <- land.mk.area %>% 
+    pivot_wider(names_from = c(Market, Area, Half), 
+                names_sep = ".",
+                #names_prefix = "Land.",
+                values_from=MT.sum)
+  
+  
+  
+  
+ write.csv(land.mk.area.table, file=paste0(od, "Landings_by_Mkt_Area.csv"), row.names = F)
+  
+  
+
+
+
+ land.len.table <- land.mk.area.table %>%
+   left_join(len.mk.area.table, by="YEAR", suffix = c(".land", ".len") )
+ land.len.age.table <- land.len.table %>%
+   left_join(age.mk.area.table, by="YEAR", suffix = c(".x", ".len")) 
+
+  large <- land.len.age.table %>% 
+   select(starts_with("LARGE")) %>%
+   mutate(
+     LARGE.EGB.1.Lengths.per.MT = (LARGE.EGB.1.len)/(LARGE.EGB.1.land),
+     LARGE.EGB.1.Ages.per.MT = (LARGE.EGB.1)/(LARGE.EGB.1.land),
+     LARGE.EGB.2.Lengths.per.MT = (LARGE.EGB.2.len)/(LARGE.EGB.2.land),
+     LARGE.EGB.2.Ages.per.MT = (LARGE.EGB.2)/(LARGE.EGB.2.land),
+     LARGE.WGB.1.Lengths.per.MT = (LARGE.WGB.1.len)/(LARGE.WGB.1.land),
+     LARGE.WGB.1.Ages.per.MT = (LARGE.WGB.1)/(LARGE.WGB.1.land),
+     LARGE.WGB.2.Lengths.per.MT = (LARGE.WGB.2.len)/(LARGE.WGB.2.land),
+     LARGE.WGB.2.Ages.per.MT = (LARGE.WGB.2)/(LARGE.WGB.2.land)
+   ) %>%
+   replace(is.na(.), 0) %>% 
+    select(YEAR, ends_with(c(".land","per.MT" )) ) %>%
+    mutate(across(where(is.double), round, 1)) 
+  
+  
+  
+
+  
+  
+
+ 
+
+ 
+ scrod <- land.len.age.table %>% 
+   select(starts_with("SCROD"))
+ 
+ scrod <- land.len.age.table %>% 
+   select(starts_with("SCROD")) %>%
+   mutate(
+     SCROD.EGB.1.Lengths.per.MT = (SCROD.EGB.1.len)/(SCROD.EGB.1.land),
+     SCROD.EGB.1.Ages.per.MT = (SCROD.EGB.1)/(SCROD.EGB.1.land),
+     SCROD.EGB.2.Lengths.per.MT = (SCROD.EGB.2.len)/(SCROD.EGB.2.land),
+     SCROD.EGB.2.Ages.per.MT = (SCROD.EGB.2)/(SCROD.EGB.2.land),
+     SCROD.WGB.1.Lengths.per.MT = (SCROD.WGB.1.len)/(SCROD.WGB.1.land),
+     SCROD.WGB.1.Ages.per.MT = (SCROD.WGB.1)/(SCROD.WGB.1.land),
+     SCROD.WGB.2.Lengths.per.MT = (SCROD.WGB.2.len)/(SCROD.WGB.2.land),
+     SCROD.WGB.2.Ages.per.MT = (SCROD.WGB.2)/(SCROD.WGB.2.land)
+   ) %>%
+   replace(is.na(.), 0) %>% 
+   select(YEAR, ends_with(c(".land","per.MT" )) ) %>%
+   mutate(across(where(is.double), round, 1)) 
+   
+ 
+ 
+ 
+ snapper <- land.len.age.table %>% 
+   select(starts_with("SNAPPER"))
+ 
+ snapper <- land.len.age.table %>% 
+   #filter(YEAR>2000) %>%
+   select(starts_with("SNAPPER")) %>%
+   mutate(
+     SNAPPER.EGB.1.Lengths.per.MT = (SNAPPER.EGB.1.len)/(SNAPPER.EGB.1.land),
+     SNAPPER.EGB.1.Ages.per.MT = (SNAPPER.EGB.1)/(SNAPPER.EGB.1.land),
+     SNAPPER.EGB.2.Lengths.per.MT = (SNAPPER.EGB.2.len)/(SNAPPER.EGB.2.land),
+     SNAPPER.EGB.2.Ages.per.MT = (SNAPPER.EGB.2)/(SNAPPER.EGB.2.land),
+     SNAPPER.WGB.1.Lengths.per.MT = (SNAPPER.WGB.1.len)/(SNAPPER.WGB.1.land),
+     SNAPPER.WGB.1.Ages.per.MT = (SNAPPER.WGB.1)/(SNAPPER.WGB.1.land),
+     SNAPPER.WGB.2.Lengths.per.MT = (SNAPPER.WGB.2.len)/(SNAPPER.WGB.2.land),
+     SNAPPER.WGB.2.Ages.per.MT = (SNAPPER.WGB.2)/(SNAPPER.WGB.2.land)
+   ) %>%
+   replace(is.na(.), 0) %>% 
+   select(YEAR, ends_with(c(".land","per.MT" )) ) %>%
+   mutate(across(where(is.double), round, 1)) 
+ 
+ 
+ 
+ write.csv(large, file=paste0(od, "Landings_Len_Age_LARGE.csv"), row.names = F)  #large[, order(colnames(large))]
+ write.csv(scrod, file=paste0(od, "Landings_Len_Age_SCROD.csv"), row.names = F)
+ write.csv(snapper, file=paste0(od, "Landings_Len_Age_SNAPPER.csv"), row.names = F)
+ 
+ 
+ 
+ 
+ # ==== Plot Samples per MT ====
+ 
+ 
+ # --------------plot
+ large.yr.samp <- large %>%
+   select(YEAR, ends_with("per.MT")) %>%
+   filter(YEAR>1969) %>%
+   pivot_longer(!YEAR, names_to = "Sampling", values_to = "per_MT") 
+ 
+ scrod.yr.samp <- scrod %>%
+   select(YEAR, ends_with("per.MT")) %>%
+   filter(YEAR>1969) %>%
+   pivot_longer(!YEAR, names_to = "Sampling", values_to = "per_MT") 
+
+ snapper.yr.samp <- snapper %>%
+   select(YEAR, ends_with("per.MT")) %>%
+   filter(YEAR>1969) %>%
+   pivot_longer(!YEAR, names_to = "Sampling", values_to = "per_MT") 
+ 
+ 
+ 
+ large.annual.samp <- ggplot( large.yr.samp, aes(x=per_MT, y=YEAR)) +
+   geom_vline(xintercept = c(0.2) , col='red', lty=1) +
+   geom_segment(aes(x=0 ,xend=per_MT, y=YEAR, yend=YEAR), color="blue" ) +
+   facet_wrap(~Sampling) +
+   ggtitle("Sampling per Metric Ton - LARGE Market") +
+   labs(caption = str_wrap("Figure 1: Number of lengths or ages sampled per MT (1000 kg) of landed catch in market category 'Large'.  The vertical red line is at 0.2, reflecting the ICNAF/NAFO recommendation of 200 lengths per 1000 tons as a minimum requirement (NAFO SCS Doc. 80/VI/20).  No numeric threshold for age samples was recommended.")) +
+   theme(plot.caption = element_text(hjust = 0))
+   
+ scrod.annual.samp <- ggplot( scrod.yr.samp, aes(x=per_MT, y=YEAR)) +
+   geom_vline(xintercept = c(0.2) , col='red') +
+   geom_segment(aes(x=0 ,xend=per_MT, y=YEAR, yend=YEAR), color="blue" ) +
+   facet_wrap(~Sampling) +
+   ggtitle("Sampling per Metric Ton - SCROD Market") +
+   labs(caption = str_wrap("Figure 2: Number of lengths or ages sampled per MT (1000 kg) of landed catch in market category 'Scrod'.  The vertical red line is at 0.2, reflecting the ICNAF/NAFO recommendation of 200 lengths per 1000 tons as a minimum requirement (NAFO SCS Doc. 80/VI/20).  No numeric threshold for age samples was recommended.")) +
+   theme(plot.caption = element_text(hjust = 0))
+ 
+ snapper.annual.samp <- ggplot( snapper.yr.samp, aes(x=per_MT, y=YEAR)) +
+   geom_vline(xintercept = c(0.2) , col='red') +
+   geom_segment(aes(x=0 ,xend=per_MT, y=YEAR, yend=YEAR), color="blue" ) +
+   facet_wrap(~Sampling) +
+   ggtitle("Sampling per Metric Ton - SNAPPER Market") +
+   labs(caption = str_wrap("Figure 3: Number of lengths or ages sampled per MT (1000 kg) of landed catch in market category 'Snapper'.  The vertical red line is at 0.2, reflecting the ICNAF/NAFO recommendation of 200 lengths per 1000 tons as a minimum requirement (NAFO SCS Doc. 80/VI/20).  No numeric threshold for age samples was recommended.")) +
+   theme(plot.caption = element_text(hjust = 0))
+   
+   
+   
+   
+ # make pdf for sampling of landings  ====
+ pdf(file=paste0(od,"Sampling.per.MT.pdf"), width=8, height=10.5, pointsize=10)
+ 
+large.annual.samp
+scrod.annual.samp
+snapper.annual.samp
+ 
+ dev.off()
+ 
