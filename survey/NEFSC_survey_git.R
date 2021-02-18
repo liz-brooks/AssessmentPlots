@@ -17,6 +17,7 @@ library(tidyr)
 library(ggridges)
 library(readr)
 library(stringr)
+library(gridExtra)
 
 #=====================================================
 
@@ -98,6 +99,13 @@ fall.tow.num.str <- fall %>%
   select(Year, Strata, Tow, catch_number) %>%
   mutate(Year = factor(Year))
 
+fall.ntows <- fall.tow.num.str %>%
+  add_count(Tow) %>%
+  group_by(Year) %>%
+  mutate(pos = ifelse(catch_number>0, 1, 0)) %>%
+  summarise(Ntow.yr = sum(n), 
+            prop.pos = sum(pos)/Ntow.yr) %>%
+  mutate(Season="FALL")
 
 fall.tow.hist.63to90 <- ggplot(fall.tow.num.str[fall.tow.num.str$Year %in% seq(1963, 1990),], aes(x = catch_number )    ) +   
   facet_wrap(~Year, scales = "free")+
@@ -258,6 +266,13 @@ spring.tow.num.str <- spring %>%
   select(Year, Strata, Tow, catch_number) %>%
   mutate(Year = factor(Year))
 
+spring.ntows <- spring.tow.num.str %>%
+  add_count(Tow) %>%
+  group_by(Year) %>%
+  mutate(pos = ifelse(catch_number>0, 1, 0)) %>%
+  summarise(Ntow.yr = sum(n), 
+            prop.pos = sum(pos)/Ntow.yr) %>%
+  mutate(Season = "SPRING")
 
 spring.tow.hist.68to90 <- ggplot(spring.tow.num.str[spring.tow.num.str$Year %in% seq(1968, 1990),], aes(x = catch_number )    ) +   
   facet_wrap(~Year, scales = "free")+
@@ -426,6 +441,32 @@ spring.fall.lenfreq <- ggplot(spring.fall, aes(x = Length, y=Season,   fill=Seas
   scale_fill_manual(values=c( "#CC663344","#22CC6644"))   +
   guides(fill=guide_legend(reverse=T))
 
+
+spring.fall.ntows <- fall.ntows %>%
+  add_row(spring.ntows)
+
+Ntow.plot <- ggplot(spring.fall.ntows, aes(x=Year, y=Ntow.yr)) + 
+  facet_wrap( ~ Season) +
+  geom_point( colour="#5566FF") + 
+   ylab(label="Number of Tows") +
+  ylim(0, max(spring.fall.ntows$Ntow.yr)) +
+  theme(axis.text.x  = element_text(angle=90, vjust=0.5, size=9),
+        axis.text.y  = element_text(size=9))+
+  scale_x_discrete(breaks = seq(1963, 2019, by=2))
+
+Prop.pos.plot <- ggplot(spring.fall.ntows, aes(x=Year, y=prop.pos)) + 
+  facet_wrap( ~ Season) +
+  geom_point( colour="#992266") + 
+  ylab(label="Proportion of Positive Tows")+
+  ylim(0,1) +
+  theme(axis.text.x  = element_text(angle=90, vjust=0.5, size=9),
+        axis.text.y  = element_text(size=9)) +
+  scale_x_discrete(breaks = seq(1963, 2019, by=2))
+       
+     
+ Tow.prop.pos.plot <- grid.arrange(Ntow.plot, Prop.pos.plot, #heights = c(4, 4),, align = "v"
+                                ncol = 1, nrow = 2)      
+   ggsave(Tow.prop.pos.plot, file=paste0(od, "GBHaddock_Tow.prop.pos.plot.pdf"), width=8, height=10.5, pointsize=10)
 
 pdf(file=paste0(od, "GBHaddock_TOR3_Survey_plots.pdf"), width=8, height=10.5, pointsize=10)
 index.annual.plot
